@@ -1,33 +1,20 @@
 <template>
   <div>
-    <el-button type="primary" @click="appendOne">添加一级菜单</el-button>
-    <el-tree
-      :data="menus"
-      :props="defaultProps"
-      show-checkbox
-      :expand-on-click-node="false"
-      node-key="catId"
-      :default-expanded-keys="expandedKey"
-      draggable
-      :allow-drop="allowDrop"
-    >
+    <el-button type="primary" @click="appendOne" size="medium" round>添加一级菜单</el-button>
+    <el-switch v-model="draggable" active-text="开启拖拽" inactive-text="关闭拖拽">
+    </el-switch>
+    <el-button v-if="draggable" @click="batchSave" size="mini" type="primary" round :loading="loading">批量保存</el-button>
+    <el-button type="danger" size="mini" @click="batchDelete">批量删除</el-button>
+    <el-tree :data="menus" :props="defaultProps" show-checkbox :expand-on-click-node="false" node-key="catId"
+      :default-expanded-keys="expandedKey" :draggable="draggable" :allow-drop="allowDrop" @node-drop="handleDrop"
+      ref="menuTree">
       <span class="custom-tree-node" slot-scope="{ node, data }">
         <span>{{ node.label }}</span>
         <span>
-          <el-button
-            type="text"
-            v-if="node.level <= 2"
-            size="mini"
-            @click="() => append(data)"
-          >
+          <el-button type="text" v-if="node.level <= 2" size="mini" @click="() => append(data)">
             Append
           </el-button>
-          <el-button
-            type="text"
-            v-if="node.childNodes.length == 0"
-            size="mini"
-            @click="() => remove(node, data)"
-          >
+          <el-button type="text" v-if="node.childNodes.length == 0" size="mini" @click="() => remove(node, data)">
             Delete
           </el-button>
           <el-button type="text" size="mini" @click="() => edit(data)">
@@ -38,12 +25,7 @@
     </el-tree>
 
     <!--添加菜单节点-->
-    <el-dialog
-      :title="title"
-      :visible.sync="dialogVisible"
-      width="30%"
-      :close-on-click-modal="false"
-    >
+    <el-dialog :title="title" :visible.sync="dialogVisible" width="30%" :close-on-click-modal="false">
       <el-form :model="category">
         <el-form-item label="活动名称">
           <el-input v-model="category.name" autocomplete="off"></el-input>
@@ -52,10 +34,7 @@
           <el-input v-model="category.icon" autocomplete="off"></el-input>
         </el-form-item>
         <el-form-item label="计量单位">
-          <el-input
-            v-model="category.productUnit"
-            autocomplete="off"
-          ></el-input>
+          <el-input v-model="category.productUnit" autocomplete="off"></el-input>
         </el-form-item>
       </el-form>
       <span slot="footer" class="dialog-footer">
@@ -73,13 +52,16 @@
 
 import { addListener } from "process";
 import Vue from "vue";
-
 export default {
   //import 引入的组件需要注入到对象中才能使用
   components: {},
   props: {},
   data() {
     return {
+      loading: false,
+      draggable: false,
+      pCid: [],
+      updateNodes: [],
       maxLevel: 0,
       menus: [],
       expandedKey: [],
@@ -121,6 +103,119 @@ export default {
         this.menus = data.data;
       });
     },
+    batchDelete() {
+      let catIds = [];
+      let menuName =[];
+      let size = 0;
+      var data = this.$refs.menuTree.getCheckedNodes();
+      for (let i = 0; i < data.length; i++) {
+        catIds.push(data[i].catId);
+        menuName.push(data[i].name);
+        size ++;
+      }
+
+      this.$confirm(`是否批量删除【${menuName}】共${size}个菜单?`, {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      })
+        .then(() => {
+          this.$http({
+            url: this.$http.adornUrl("/product/category/delete"),
+            method: "post",
+            data: this.$http.adornData(catIds, false),
+          }).then(({ data }) => {
+            this.getMenu();
+            this.$message({
+              type: "success",
+              message: "删除成功!",
+            });
+          });
+        })
+        .catch(() => { });
+
+      console.log("拿到的数据:", data);
+      console.log("拿到的ID:", catIds);
+
+    },
+    //------------------------------------------------------------------------
+    handleDrop(draggingNode, dropNode, dropType, ev) {
+      console.log("handleDrop: ", draggingNode, dropNode, dropType);
+      //1、当前节点最新的父节点id
+      let pCid = 0;
+      let siblings = null;
+      if (dropType == "before" || dropType == "after") {
+        pCid =
+          dropNode.parent.data.catId == undefined
+            ? 0
+            : dropNode.parent.data.catId;
+        siblings = dropNode.parent.childNodes;
+      } else {
+        pCid = dropNode.data.catId;
+        siblings = dropNode.childNodes;
+      }
+      this.pCid.push(pCid);
+
+      //2、当前拖拽节点的最新顺序，
+      for (let i = 0; i < siblings.length; i++) {
+        if (siblings[i].data.catId == draggingNode.data.catId) {
+          //如果遍历的是当前正在拖拽的节点
+          let catLevel = draggingNode.level;
+          if (siblings[i].level != draggingNode.level) {
+            //当前节点的层级发生变化
+            catLevel = siblings[i].level;
+            //修改他子节点的层级
+            this.updateChildNodelvel(siblings[i]);
+          }
+          this.updateNodes.push({
+            catId: siblings[i].data.catId,
+            sort: i,
+            parentCid: pCid,
+            catLevel: catLevel,
+          });
+        } else {
+          this.updateNodes.push({ catId: siblings[i].data.catId, sort: i });
+        }
+      }
+
+      //3、当前拖拽节点的最新层级
+      console.log("updateNodes", this.updateNodes);
+    },
+    batchSave() {
+      this.loading = true;
+      this.$http({
+        url: this.$http.adornUrl("/product/category/update/sort"),
+        method: "post",
+        data: this.$http.adornData(this.updateNodes, false),
+      }).then(({ data }) => {
+        this.$message({
+          message: "菜单顺序等修改成功",
+          type: "success",
+        });
+        //刷新出新的菜单
+        this.getMenu();
+        //设置需要默认展开的菜单
+        this.expandedKey = this.pCid;
+        this.updateNodes = [];
+        this.maxLevel = 0;
+        this.loading = false;
+        // this.pCid = 0;
+      });
+    },
+
+    updateChildNodelvel(node) {
+      if (node.childNodes.length > 0) {
+        for (let i = 0; i < node.childNodes.length; i++) {
+          var cNode = node.childNodes[i].data;
+          this.updateNodes.push({
+            catId: cNode.catId,
+            catLevel: node.childNodes[i].level,
+          });
+          this.updateChildNodelvel(node.childNodes[i]);
+        }
+      }
+    },
+    //---------------------------------------------------------------------
     allowDrop(draggingNode, dropNode, type) {
       //1、被拖动的当前节点以及所在的父节点总层数不能大于3
 
@@ -264,7 +359,7 @@ export default {
             console.log("expandedKey ==  " + this.expandedKey);
           });
         })
-        .catch(() => {});
+        .catch(() => { });
 
       console.log("remove", node, data);
     },
@@ -278,14 +373,14 @@ export default {
     this.getMenu();
   },
   //生命周期- 挂载完成（可以访问DOM 元素）
-  mounted() {},
-  beforeCreate() {}, //生命周期- 创建之前
-  beforeMount() {}, //生命周期- 挂载之前
-  beforeUpdate() {}, //生命周期- 更新之前
-  updated() {}, //生命周期- 更新之后
-  beforeDestroy() {}, //生命周期- 销毁之前
-  destroyed() {}, //生命周期- 销毁完成
-  activated() {}, //如果页面有keep-alive 缓存功能，这个函数会触发
+  mounted() { },
+  beforeCreate() { }, //生命周期- 创建之前
+  beforeMount() { }, //生命周期- 挂载之前
+  beforeUpdate() { }, //生命周期- 更新之前
+  updated() { }, //生命周期- 更新之后
+  beforeDestroy() { }, //生命周期- 销毁之前
+  destroyed() { }, //生命周期- 销毁完成
+  activated() { }, //如果页面有keep-alive 缓存功能，这个函数会触发
 };
 </script>
 <style  scoped>
