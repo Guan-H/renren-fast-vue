@@ -113,9 +113,9 @@ export default {
     },
     updateStatus(data) {
       console.log("单条状态信息：{}", data);
-      let { brandId, showStatus } = data;
+      let { brandId, showStatus,name } = data;
       this.$http({
-        url: this.$http.adornUrl("/product/brand/update"),
+        url: this.$http.adornUrl("/product/brand/update/status"),
         method: "post",
         data: this.$http.adornData({ brandId, showStatus }, false),
       }).then(({ data }) => {
