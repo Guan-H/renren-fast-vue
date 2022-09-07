@@ -1,5 +1,5 @@
 <template>
-    <el-tree :data="menus" :props="defaultProps" node-key="catId" ref="menuTree" @node-click="nodeclick">
+    <el-tree :data="menus" :props="defaultProps" node-key="catId" ref="menuTree" @node-click="nodeclick" :highlight-current=false>
     </el-tree>
 </template>
 
@@ -21,6 +21,7 @@ export default {
                 label: "name"
             }
         };
+        
     },
     //计算属性 类似于 data 概念
     computed: {},
