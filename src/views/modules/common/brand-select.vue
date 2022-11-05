@@ -30,7 +30,8 @@ export default {
         }
       ],
       brandId: "",
-      subscribe: null
+      subscribe: null,
+      PubSub :""
     };
   },
   //计算属性 类似于data概念
