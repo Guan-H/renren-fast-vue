@@ -1,7 +1,8 @@
 <template>
   <div>
+    <!-- action="http://gulimall.oss-cn-shanghai.aliyuncs.com" -->
     <el-upload
-      action="http://gulimall.oss-cn-shanghai.aliyuncs.com"
+      action="http://gulimall-ggh.oss-cn-guangzhou.aliyuncs.com/"
       :data="dataObj"
       list-type="picture-card"
       :file-list="fileList"
@@ -98,6 +99,7 @@ export default {
       this.fileList.push({
         name: file.name,
         // url: this.dataObj.host + "/" + this.dataObj.dir + "/" + file.name； 替换${filename}为真正的文件名
+        // this.$http.adornUrl(`/sys/oss/upload?token=${this.$cookie.get('token')}`)
         url: this.dataObj.host + "/" + this.dataObj.key.replace("${filename}",file.name)
       });
       this.emitInput(this.fileList);
